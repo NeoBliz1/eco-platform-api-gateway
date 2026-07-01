@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"fmt"
 	consulapi "github.com/hashicorp/consul/api"
 	"log"
 	"net/http"
@@ -36,13 +37,16 @@ func RegisterRoutes(mux *http.ServeMux, consulClient *consulapi.Client, routeMap
 				currentIndex := atomic.AddUint64(counter, 1) % uint64(len(services))
 				selectedService := services[currentIndex].Service
 
-				targetUrlStr := "http://" + selectedService.Address + ":" + string(rune(selectedService.Port))
+				targetUrlStr := fmt.Sprintf("http://%s:%d", selectedService.Address, selectedService.Port)
 				targetUrl, err := url.Parse(targetUrlStr)
 				if err != nil {
 					log.Printf("ERROR: Failed to parse target URL: %v", err)
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 					return
 				}
+
+				log.Printf("PROXY: Routing request [Method: %s] [Path: %s] -> Target Backend [%s:%d]",
+					r.Method, r.URL.Path, selectedService.Address, selectedService.Port)
 
 				proxyEngine := httputil.NewSingleHostReverseProxy(targetUrl)
 				r.Header.Set("X-Gateway-Route-Target", targetServiceName)
