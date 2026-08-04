@@ -2,13 +2,13 @@ package pkg
 
 import (
 	"fmt"
-	consulapi "github.com/hashicorp/consul/api"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
 	"sync/atomic"
+
+	consulapi "github.com/hashicorp/consul/api"
 )
 
 func RegisterRoutes(mux *http.ServeMux, consulClient *consulapi.Client, routeMappings string, counter *uint64) {
@@ -30,6 +30,11 @@ func RegisterRoutes(mux *http.ServeMux, consulClient *consulapi.Client, routeMap
 			mux.HandleFunc(urlPath, func(w http.ResponseWriter, r *http.Request) {
 				services, _, err := consulClient.Health().Service(targetServiceName, "", true, nil)
 				if err != nil || len(services) == 0 {
+					Log.Error("Service Unavailable under route cluster",
+						"target_service", targetServiceName,
+						"path", r.URL.Path,
+						"error", err,
+					)
 					http.Error(w, "Service Unavailable under route cluster", http.StatusServiceUnavailable)
 					return
 				}
@@ -40,13 +45,17 @@ func RegisterRoutes(mux *http.ServeMux, consulClient *consulapi.Client, routeMap
 				targetUrlStr := fmt.Sprintf("http://%s:%d", selectedService.Address, selectedService.Port)
 				targetUrl, err := url.Parse(targetUrlStr)
 				if err != nil {
-					log.Printf("ERROR: Failed to parse target URL: %v", err)
+					Log.Error("Failed to parse target URL", "target_url", targetUrlStr, "error", err)
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 					return
 				}
 
-				log.Printf("PROXY: Routing request [Method: %s] [Path: %s] -> Target Backend [%s:%d]",
-					r.Method, r.URL.Path, selectedService.Address, selectedService.Port)
+				Log.Info("PROXY: Routing request to target backend",
+					"method", r.Method,
+					"path", r.URL.Path,
+					"target_host", selectedService.Address,
+					"target_port", selectedService.Port,
+				)
 
 				proxyEngine := httputil.NewSingleHostReverseProxy(targetUrl)
 				r.Header.Set("X-Gateway-Route-Target", targetServiceName)
@@ -60,7 +69,7 @@ func RegisterRoutes(mux *http.ServeMux, consulClient *consulapi.Client, routeMap
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte("{\"status\":\"UP\",\"targets\":\"multi-configured\"}")); err != nil {
-			log.Printf("ERROR: Failed to write health response: %v", err)
+			Log.Error("Failed to write health response", "error", err)
 		}
 	})
 }

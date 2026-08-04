@@ -3,11 +3,11 @@ package api
 import (
 	"eco-platform-api-gateway/pkg"
 	"fmt"
-	consulapi "github.com/hashicorp/consul/api"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
+
+	consulapi "github.com/hashicorp/consul/api"
 )
 
 var requestCounter uint64
@@ -18,12 +18,12 @@ func StartGateway(config *pkg.Config) {
 
 	consulClient, err := consulapi.NewClient(consulConfig)
 	if err != nil {
-		log.Fatalf("CRITICAL: Failed to link Consul engine registry: %v", err)
+		pkg.Log.Error("CRITICAL: Failed to link Consul engine registry", "error", err)
 	}
 
 	portInt, err := strconv.Atoi(config.GatewayPort)
 	if err != nil {
-		log.Fatalf("CRITICAL: Invalid gateway port: %v", err)
+		pkg.Log.Error("CRITICAL: Invalid gateway port", "error", err)
 	}
 
 	hostIp := os.Getenv("SERVER_HOST")
@@ -46,15 +46,18 @@ func StartGateway(config *pkg.Config) {
 
 	err = consulClient.Agent().ServiceRegister(registration)
 	if err != nil {
-		log.Printf("WARN: Gateway failed to register itself with Consul catalog: %v", err)
+		pkg.Log.Warn("Gateway failed to register itself with Consul catalog", "error", err)
 	} else {
-		log.Println("INFO: Successfully registered eco-platform-api-gateway with Consul!")
+		pkg.Log.Info("Successfully registered eco-platform-api-gateway with Consul")
 	}
 
 	mux := http.NewServeMux()
 
 	pkg.RegisterRoutes(mux, consulClient, config.RouteMappings, &requestCounter)
 
-	log.Printf("INFO: Go Dynamic Edge Gateway running on port %s", config.GatewayPort)
-	log.Fatal(http.ListenAndServe(":"+config.GatewayPort, mux))
+	pkg.Log.Info("New way logs, Go Dynamic Edge Gateway running", "port", config.GatewayPort)
+
+	if listenErr := http.ListenAndServe(":"+config.GatewayPort, mux); listenErr != nil {
+		pkg.Log.Error("Fatal server crash during runtime execution", "error", listenErr)
+	}
 }

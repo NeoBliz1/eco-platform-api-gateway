@@ -7,6 +7,7 @@ import (
 )
 
 func main() {
+	pkg.InitStructuredLogger()
 	config, err := pkg.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to initialize system parameters: %v", err)
