@@ -4,13 +4,10 @@ import (
 	"eco-platform-api-gateway/pkg"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 
 	consulapi "github.com/hashicorp/consul/api"
 )
-
-var requestCounter uint64
 
 func StartGateway(config *pkg.Config) {
 	consulConfig := consulapi.DefaultConfig()
@@ -26,7 +23,7 @@ func StartGateway(config *pkg.Config) {
 		pkg.Log.Error("CRITICAL: Invalid gateway port", "error", err)
 	}
 
-	hostIp := os.Getenv("SERVER_HOST")
+	hostIp := config.ServerHost
 	if hostIp == "" {
 		hostIp = "localhost"
 	}
@@ -53,11 +50,11 @@ func StartGateway(config *pkg.Config) {
 
 	mux := http.NewServeMux()
 
-	pkg.RegisterRoutes(mux, consulClient, config.RouteMappings, &requestCounter)
-
+	pkg.RegisterRoutes(mux, consulClient, config.RouteMappings)
+	monitoredMux := pkg.MetricsMiddleware(mux)
 	pkg.Log.Info("New way logs, Go Dynamic Edge Gateway running", "port", config.GatewayPort)
 
-	if listenErr := http.ListenAndServe(":"+config.GatewayPort, mux); listenErr != nil {
+	if listenErr := http.ListenAndServe(":"+config.GatewayPort, monitoredMux); listenErr != nil {
 		pkg.Log.Error("Fatal server crash during runtime execution", "error", listenErr)
 	}
 }

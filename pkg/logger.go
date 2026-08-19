@@ -28,11 +28,11 @@ func (w *LineDelimiterWriter) Write(p []byte) (n int, err error) {
 }
 
 // InitStructuredLogger sets up network/console handlers and binds default runtime context
-func InitStructuredLogger() {
+func InitStructuredLogger(cfg *Config) {
 	var logDestination io.Writer
 
 	// Fetch vector pipeline endpoint from environment vars with loopback fallback
-	vectorAddress := os.Getenv("LOGSTASH_TCP_DESTINATION")
+	vectorAddress := cfg.LogstashTcpDestination
 	if vectorAddress == "" {
 		vectorAddress = "127.0.0.1:6001"
 	}
@@ -49,9 +49,25 @@ func InitStructuredLogger() {
 		logDestination = io.MultiWriter(os.Stdout, networkWriter)
 	}
 
-	// RUNTIME REFLECTION HANDLER
+	programLevel := new(slog.LevelVar) // Defaults to INFO (0)
+	envLevel := strings.ToUpper(strings.TrimSpace(cfg.LogLevel))
+
+	switch envLevel {
+	case "DEBUG":
+		programLevel.Set(slog.LevelDebug)
+	case "INFO":
+		programLevel.Set(slog.LevelInfo)
+	case "WARN":
+		programLevel.Set(slog.LevelWarn)
+	case "ERROR":
+		programLevel.Set(slog.LevelError)
+	default:
+		programLevel.Set(slog.LevelInfo) // Safe fallback match
+	}
+
 	handlerOpts := &slog.HandlerOptions{
-		AddSource: true, // Forces slog to capture caller program counter coordinates
+		AddSource: true,
+		Level:     programLevel,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 
 			// 1. Intercept runtime source object block to isolate file path
