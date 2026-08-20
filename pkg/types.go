@@ -7,12 +7,12 @@ import (
 )
 
 type Config struct {
-	GatewayPort            string `envconfig:"GATEWAY_PORT"`
 	ConsulAddress          string `envconfig:"CONSUL_ADDRESS"`
-	RouteMappings          string `envconfig:"ROUTE_MAPPINGS"`
-	ServerHost             string `envconfig:"SERVER_HOST"`
-	LogstashTcpDestination string `envconfig:"LOGSTASH_TCP_DESTINATION"`
-	LogLevel               string `envconfig:"LOG_LEVEL"`
+	GatewayPort            string `yaml:"port"`
+	ServerHost             string `yaml:"host"`
+	RouteMappings          string `yaml:"routes"`
+	LogLevel               string `yaml:"log_level"`
+	LogstashTcpDestination string `yaml:"logstash_destination"`
 }
 
 type routeCache struct {
