@@ -32,7 +32,7 @@ func LoadConfig() (*Config, error) {
 		return &c, err
 	}
 
-	// Fetch the single flat YAML block from your custom Consul path
+	// Fetch the single flat YAML block from custom Consul path
 	kv := client.KV()
 	targetKey := "config/eco-monitoring-gateway/data"
 
@@ -49,7 +49,7 @@ func LoadConfig() (*Config, error) {
 		return &c, nil
 	}
 
-	// Parse the raw YAML directly into the root level fields of your struct
+	// Parse the raw YAML directly into the root level fields
 	if err := yaml.Unmarshal(pair.Value, &c); err != nil {
 		log.Printf("[ERROR] Failed to parse flat YAML data from Consul: %v", err)
 		return &c, err

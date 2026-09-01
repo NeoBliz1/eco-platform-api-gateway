@@ -69,7 +69,13 @@ func RegisterRoutes(mux *http.ServeMux, consulClient *consulapi.Client, routeMap
 				cache.mu.RUnlock()
 
 				r.Header.Set("X-Gateway-Route-Target", cache.targetService)
+				wrappedWriter := &StatusResponseWriter{ResponseWriter: w, StatusCode: http.StatusOK}
 				proxy.ServeHTTP(w, r)
+				Log.Debug("Intercepted Reverse Proxy Response Status",
+					"target_service", cache.targetService,
+					"status_code", wrappedWriter.StatusCode,
+					"url", r.URL.Path,
+				)
 			})
 		}
 	}
@@ -102,4 +108,9 @@ func (c *routeCache) updateTargets(consulClient *consulapi.Client) {
 	c.mu.Unlock()
 
 	Log.Debug("Route registry endpoints updated", "service", c.targetService, "healthy_count", len(activeProxies))
+}
+
+func (w *StatusResponseWriter) WriteHeader(code int) {
+	w.StatusCode = code
+	w.ResponseWriter.WriteHeader(code)
 }
