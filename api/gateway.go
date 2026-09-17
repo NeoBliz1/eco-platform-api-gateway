@@ -1,15 +1,38 @@
 package api
 
 import (
+	"context"
 	"eco-platform-api-gateway/pkg"
+	"eco-platform-api-gateway/pkg/telemetry"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	consulapi "github.com/hashicorp/consul/api"
 )
 
 func StartGateway(config *pkg.Config) {
+	pkg.Log.Info("Initializing global OpenTelemetry distributed tracer targeting Jaeger...")
+	initCtx, initCancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+	otelShutdown, err := telemetry.InitTracer(initCtx, "gateway-service")
+	initCancel()
+	if err != nil {
+		pkg.Log.Error("CRITICAL: OpenTelemetry trace pipeline failed to start", "error", err)
+	}
+
+	defer func() {
+		if otelShutdown != nil {
+			pkg.Log.Info("Flushing telemetry batches to Jaeger backend...")
+			shutCtx, shutCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutCancel()
+			if shutErr := otelShutdown(shutCtx); shutErr != nil {
+				pkg.Log.Warn("Telemetry buffer flush error encountered during cleanup", "error", shutErr)
+			}
+		}
+	}()
+	
 	consulConfig := consulapi.DefaultConfig()
 	consulConfig.Address = config.ConsulAddress
 
