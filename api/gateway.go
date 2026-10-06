@@ -5,21 +5,29 @@ import (
 	"eco-platform-api-gateway/pkg"
 	"eco-platform-api-gateway/pkg/telemetry"
 	"fmt"
+	consulapi "github.com/hashicorp/consul/api"
+	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
-
-	consulapi "github.com/hashicorp/consul/api"
 )
 
 func StartGateway(config *pkg.Config) {
-	pkg.Log.Info("Initializing global OpenTelemetry distributed tracer targeting Jaeger...")
-	initCtx, initCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	var otelShutdown func(context.Context) error
 
-	otelShutdown, err := telemetry.InitTracer(initCtx, "gateway-service")
-	initCancel()
-	if err != nil {
-		pkg.Log.Error("CRITICAL: OpenTelemetry trace pipeline failed to start", "error", err)
+	if config.RequestTraceEnabled {
+		pkg.Log.Info("Initializing global OpenTelemetry distributed tracer targeting Jaeger...")
+		initCtx, initCancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+		var err error
+		otelShutdown, err = telemetry.InitTracer(initCtx, "gateway-service")
+		initCancel()
+		if err != nil {
+			pkg.Log.Error("CRITICAL: OpenTelemetry trace pipeline failed to start", "error", err)
+		}
+	} else {
+		pkg.Log.Info("OpenTelemetry trace pipeline disabled via configuration (request_trace_enabled = false).")
 	}
 
 	defer func() {
@@ -32,7 +40,7 @@ func StartGateway(config *pkg.Config) {
 			}
 		}
 	}()
-	
+
 	consulConfig := consulapi.DefaultConfig()
 	consulConfig.Address = config.ConsulAddress
 
@@ -46,9 +54,15 @@ func StartGateway(config *pkg.Config) {
 		pkg.Log.Error("CRITICAL: Invalid gateway port", "error", err)
 	}
 
-	hostIp := config.ServerHost
-	if hostIp == "" {
-		hostIp = "localhost"
+	hostIp, err := discoverHostIP(config.ConsulAddress)
+	if err != nil {
+		pkg.Log.Warn("Dynamic host discovery failed, falling back to ServerHost fallback values", "error", err)
+		hostIp = config.ServerHost
+		if hostIp == "" {
+			hostIp = "localhost"
+		}
+	} else {
+		pkg.Log.Info("Programmatically resolved host machine network IP address for Consul lifecycle", "resolved_ip", hostIp)
 	}
 
 	registration := &consulapi.AgentServiceRegistration{
@@ -80,4 +94,23 @@ func StartGateway(config *pkg.Config) {
 	if listenErr := http.ListenAndServe(":"+config.GatewayPort, monitoredMux); listenErr != nil {
 		pkg.Log.Error("Fatal server crash during runtime execution", "error", listenErr)
 	}
+}
+
+func discoverHostIP(consulAddress string) (string, error) {
+	targetAddr := consulAddress
+
+	if strings.HasPrefix(targetAddr, "localhost:") || strings.HasPrefix(targetAddr, "127.0.0.1:") {
+		targetAddr = "8.8.8.8:80"
+	}
+
+	conn, err := net.Dial("udp", targetAddr)
+	if err != nil {
+		return "", err
+	}
+	defer func(conn net.Conn) {
+		_ = conn.Close()
+	}(conn)
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String(), nil
 }

@@ -147,15 +147,12 @@ func RegisterRoutes(mux *http.ServeMux, consulClient *consulapi.Client, routeMap
 			InjectTraceContext(r)
 			proxy.ServeHTTP(wrappedWriter, r)
 
-			Log.Debug("Intercepted Reverse Proxy Response Status",
-				"target_service", cache.targetService,
-				"status_code", wrappedWriter.StatusCode,
-				"url", r.URL.Path,
-			)
+			Log.Debug(fmt.Sprintf(
+				"Intercepted Reverse Proxy Response Status, target_service=%s, status_code=%d, url=%s",
+				cache.targetService, wrappedWriter.StatusCode, r.URL.Path,
+			))
 		})
 
-		// Register routes as exact paths and directory path prefixes.
-		// This passes standard query strings seamlessly without breaking the route patterns.
 		mux.Handle(urlPath, WrapWithTracing(proxyHandler, targetServiceName))
 		if !strings.HasSuffix(urlPath, "/") {
 			mux.Handle(urlPath+"/", WrapWithTracing(proxyHandler, targetServiceName))
@@ -187,8 +184,7 @@ func (c *routeCache) updateTargets(consulClient *consulapi.Client) {
 	c.mu.Lock()
 	c.proxies = activeProxies
 	c.mu.Unlock()
-
-	Log.Debug("Route registry endpoints updated", "service", c.targetService, "healthy_count", len(activeProxies))
+	Log.Debug(fmt.Sprintf("Route registry endpoints updated, service=%s, healthy_count=%d", c.targetService, len(activeProxies)))
 }
 
 func (w *StatusResponseWriter) WriteHeader(code int) {

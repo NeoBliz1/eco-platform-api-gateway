@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"sync"
@@ -13,6 +14,7 @@ type Config struct {
 	RouteMappings          string `yaml:"routes"`
 	LogLevel               string `yaml:"log_level"`
 	LogstashTcpDestination string `yaml:"logstash_destination"`
+	RequestTraceEnabled    bool   `yaml:"request_trace_enabled"`
 }
 
 type routeCache struct {
@@ -25,4 +27,8 @@ type routeCache struct {
 type StatusResponseWriter struct {
 	http.ResponseWriter
 	StatusCode int
+}
+
+type LineDelimiterWriter struct {
+	Target io.Writer
 }
