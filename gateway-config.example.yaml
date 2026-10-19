@@ -1,0 +1,8 @@
+# Gateway runtime settings, stored in Consul KV under config/eco-monitoring-gateway/data
+#   consul kv put config/eco-monitoring-gateway/data @gateway-config.example.yaml
+port: "8000"
+host: "localhost"                       # fallback if the host IP cannot be detected
+routes: "/api/v1/telemetry/:eco-monitoring-ingestion,/api/v1/analysis/:eco-monitoring-analysis"
+log_level: "INFO"
+logstash_destination: "127.0.0.1:6001"  # Vector TCP source
+request_trace_enabled: true

@@ -11,8 +11,9 @@ import (
 
 // LoadConfig loads configuration fields from environment variables
 func LoadConfig() (*Config, error) {
+	// .env is optional: in containers the variables come from the environment directly
 	if err := godotenv.Load(); err != nil {
-		log.Fatalf("No .env file found, relying purely on system environment variables")
+		log.Printf("[WARN] No .env file found, relying purely on system environment variables")
 	}
 	var c Config
 	// Extract the CONSUL_ADDRESS value from the environment
